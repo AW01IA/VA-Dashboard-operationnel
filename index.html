@@ -68,6 +68,182 @@ return{ld,client:nr["nom_de_la_societe"]||"",ville:vi,dept,ca:parseFloat((nr["to
 function SB({pv,rv}){if(!pv)return <span style={{background:"#fef3c7",color:"#92400e",padding:"2px 8px",borderRadius:12,fontSize:11,fontWeight:700}}>En attente</span>;if(rv===true)return <span style={{background:"#fee2e2",color:"#991b1b",padding:"2px 8px",borderRadius:12,fontSize:11,fontWeight:700}}>⚠ Réserves</span>;return <span style={{background:"#dcfce7",color:"#14532d",padding:"2px 8px",borderRadius:12,fontSize:11,fontWeight:700}}>✓ Sans réserve</span>;}
 const iP=()=>{try{const s=localStorage.getItem("vp");if(s)return JSON.parse(s);}catch(e){}return[];};
 const iO=()=>{try{const s=localStorage.getItem("vo");if(s)return JSON.parse(s);}catch(e){}return[];};
+// ═══════════════════════════════════════════════════════════════
+// BLOC A — Coller JUSTE AVANT la ligne : function App(){
+// ═══════════════════════════════════════════════════════════════
+
+const PH=[
+  {n:1,lb:"Admin.",fl:"Formalités administratives",co:"#f97316",et:[{k:"formalites_admin",lb:"Formalités admin."}]},
+  {n:2,lb:"Études",fl:"Études",co:"#3b82f6",et:[{k:"etudes",lb:"Études"}]},
+  {n:3,lb:"Fabrication",fl:"Fabrication",co:"#e11d48",et:[{k:"fabrication",lb:"Fabrication"}]},
+  {n:4,lb:"Transport",fl:"Transport",co:"#0891b2",et:[{k:"transport",lb:"Transport"}]},
+  {n:5,lb:"Install.",fl:"Installation",co:"#0d9488",et:[{k:"installation",lb:"Installation"}]},
+  {n:6,lb:"MES",fl:"Mise en service",co:"#16a34a",et:[{k:"mise_en_service",lb:"Mise en service"},{k:"reception_finale",lb:"Réception client"}]},
+];
+const AE=PH.flatMap(p=>p.et.map(e=>({...e,ph:p})));
+const pD=s=>{if(!s)return null;const d=new Date(s+"T00:00:00");return isNaN(d.getTime())?null:d;};
+const iWk=d=>{const t=new Date(d.valueOf());t.setDate(t.getDate()+4-(t.getDay()||7));const y=new Date(t.getFullYear(),0,1);return Math.ceil((((t-y)/86400000)+1)/7);};
+const mnd=d=>{const r=new Date(d);r.setHours(0,0,0,0);r.setDate(r.getDate()-((r.getDay()+6)%7));return r;};
+const gCE=p=>{for(const e of AE){const d=p.dates[e.k];if(!d||!d.done)return e.k;}return null;};
+const isLt=p=>{const t=new Date();t.setHours(0,0,0,0);for(const e of AE){const d=p.dates[e.k];if(!d||d.done)continue;const f=pD(d.fin);if(f&&f<t)return true;}return false;};
+const WW=50,RH=44;
+const bWk=ps=>{let mn=null,mx=null;ps.forEach(p=>AE.forEach(e=>{const d=p.dates[e.k];if(!d)return;const db=pD(d.debut),fn=pD(d.fin);if(db&&(!mn||db<mn))mn=db;if(fn&&(!mx||fn>mx))mx=fn;}));const n=new Date();const s=mnd(new Date((mn||new Date(n.getFullYear(),n.getMonth()-1,1)).getTime()-7*86400000));const en=new Date((mx||new Date(n.getFullYear(),n.getMonth()+5,1)).getTime()+21*86400000);const w=[];const c=new Date(s);while(c<=en){w.push(new Date(c));c.setDate(c.getDate()+7);}return w;};
+const mGrp=wk=>{const g=[];wk.forEach(w=>{const lb=w.toLocaleDateString("fr-FR",{month:"short",year:"2-digit"});const l=g[g.length-1];if(l&&l.lb===lb)l.ct++;else g.push({lb,yr:w.getFullYear(),mo:w.getMonth(),ct:1});});return g;};
+const dX=(wk,d)=>{for(let i=0;i<wk.length;i++){const nx=new Date(wk[i]);nx.setDate(nx.getDate()+7);if(d>=wk[i]&&d<nx)return i*WW+((d.getDay()+6)%7)/7*WW;}return wk.length>0&&d<wk[0]?0:wk.length*WW;};
+
+// ── PDF planning par projet ──────────────────────────────────
+function planPDF(p){
+  const pw=window.open('','_blank');
+  if(!pw){alert('Autorisez les popups pour imprimer');return;}
+  const fmtE=new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR",maximumFractionDigits:0});
+  const today=new Date();
+  let mn=null,mx=null;
+  AE.forEach(e=>{const d=p.dates[e.k];if(!d)return;const db=pD(d.debut),fn=pD(d.fin);if(db&&(!mn||db<mn))mn=db;if(fn&&(!mx||fn>mx))mx=fn;});
+  const gs=new Date(mn||new Date(today.getFullYear(),today.getMonth(),1));gs.setDate(1);
+  const ge=new Date(mx||new Date(today.getFullYear(),today.getMonth()+6,1));ge.setMonth(ge.getMonth()+1,1);
+  const tot=ge-gs,pct=d=>Math.max(0,Math.min(100,(d-gs)/tot*100));
+  const mos=[];const mc=new Date(gs.getFullYear(),gs.getMonth(),1);
+  while(mc<ge){const nl=new Date(mc.getFullYear(),mc.getMonth()+1,1);mos.push({l:mc.toLocaleDateString("fr-FR",{month:"short",year:"2-digit"}),lp:pct(mc),wp:pct(nl)-pct(mc)});mc.setMonth(mc.getMonth()+1);}
+  const bars=AE.map(et=>{const d=p.dates[et.k];const db=d?.debut?pD(d.debut):null;const fn=d?.fin?pD(d.fin):null;const bar=db&&fn?`<div style="position:absolute;left:${pct(db)}%;width:${Math.max(0.5,pct(new Date(fn.getTime()+86400000))-pct(db))}%;top:6px;height:14px;background:${et.ph.co};opacity:${d.done?1:0.65};border-radius:3px"></div>`:'';return `<div style="height:26px;position:relative;border-bottom:1px solid #f1f5f9">${bar}</div>`;}).join('');
+  const rows=AE.map((et,i)=>{const d=p.dates[et.k];const db=d?.debut?pD(d.debut):null;const fn=d?.fin?pD(d.fin):null;const has=d?.debut||d?.fin;return `<tr style="background:${i%2===0?'white':'#fafafa'}"><td style="padding:4px 8px;border:1px solid #e2e8f0"><span style="display:inline-block;width:7px;height:7px;border-radius:1px;background:${et.ph.co};margin-right:5px;vertical-align:middle"></span><strong>Étape ${et.ph.n}</strong> · ${et.lb}</td><td style="padding:4px 8px;border:1px solid #e2e8f0;color:${has?'#374151':'#9ca3af'}">${d?.debut||'—'}</td><td style="padding:4px 8px;border:1px solid #e2e8f0;color:${has?'#374151':'#9ca3af'}">${d?.fin||'—'}</td><td style="padding:4px 8px;border:1px solid #e2e8f0;text-align:center;font-weight:600;color:#6b7280">${db?'S'+iWk(db):'—'}</td><td style="padding:4px 8px;border:1px solid #e2e8f0;text-align:center;font-weight:600;color:#6b7280">${fn?'S'+iWk(fn):'—'}</td><td style="padding:4px 8px;border:1px solid #e2e8f0;text-align:center;color:${d?.done?'#16a34a':'#f97316'};font-weight:600">${d?.done?'✓ Réalisé':has?'Planifié':'—'}</td></tr>`;}).join('');
+  const css=`*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}body{font-family:system-ui,sans-serif;padding:0}@page{size:A4 landscape;margin:10mm 12mm}`;
+  pw.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body style="padding:14px 16px;font-size:11px">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;padding-bottom:10px;border-bottom:3px solid #dc2626">
+    <div>
+      <div style="font-size:10px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">▐ Vertical Montecharge — Planning prévisionnel</div>
+      <div style="font-size:18px;font-weight:700;color:#1e293b;margin-bottom:5px">${p.nom}</div>
+      <div style="display:flex;gap:16px;font-size:11px;color:#6b7280;flex-wrap:wrap">
+        <span><strong style="color:#374151">Client :</strong> ${p.client}</span>
+        <span><strong style="color:#374151">Réf. :</strong> ${p.id}</span>
+        <span style="color:#dc2626"><strong>Montant HT :</strong> <strong>${fmtE.format(p.montant)}</strong></span>
+      </div>
+    </div>
+    <div style="text-align:right;font-size:10px;color:#9ca3af">
+      <div style="font-weight:600;color:#374151;margin-bottom:2px">Document confidentiel</div>
+      <div>Édité le ${today.toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"})}</div>
+    </div>
+  </div>
+  <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#374151;margin-bottom:6px">Planning par phases</div>
+  <div style="border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;margin-bottom:14px">
+    <div style="display:flex">
+      <div style="width:145px;flex-shrink:0;border-right:1px solid #e2e8f0">
+        <div style="height:20px;background:#f8fafc;border-bottom:2px solid #cbd5e1"></div>
+        ${AE.map(et=>`<div style="height:26px;display:flex;align-items:center;padding:0 8px;gap:5px;border-bottom:1px solid #f1f5f9"><div style="width:8px;height:8px;border-radius:1px;flex-shrink:0;background:${et.ph.co}"></div><span style="font-size:9px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#374151">${et.ph.n}. ${et.ph.lb}</span>${(p.dates[et.k]?.done?'<span style="font-size:9px;color:#16a34a;margin-left:auto">✓</span>':'')}</div>`).join('')}
+      </div>
+      <div style="flex:1;position:relative;overflow:hidden">
+        <div style="position:relative;height:20px;background:#f8fafc;border-bottom:2px solid #cbd5e1">
+          ${mos.map(m=>`<div style="position:absolute;left:${m.lp}%;width:${m.wp}%;top:0;bottom:0;display:flex;align-items:center;padding-left:5px;border-right:1px solid #cbd5e1;font-size:9px;font-weight:700;color:#374151;overflow:hidden">${m.l}</div>`).join('')}
+        </div>
+        ${bars}
+      </div>
+    </div>
+  </div>
+  <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#374151;margin-bottom:6px">Détail des jalons</div>
+  <table style="width:100%;border-collapse:collapse;font-size:10px">
+    <thead><tr style="background:#f8fafc">
+      <th style="padding:5px 8px;text-align:left;border:1px solid #e2e8f0;font-weight:700;color:#374151">Étape</th>
+      <th style="padding:5px 8px;text-align:left;border:1px solid #e2e8f0;font-weight:700;color:#374151">Date début</th>
+      <th style="padding:5px 8px;text-align:left;border:1px solid #e2e8f0;font-weight:700;color:#374151">Date fin prévue</th>
+      <th style="padding:5px 8px;text-align:center;border:1px solid #e2e8f0;font-weight:700;color:#374151">Sem. début</th>
+      <th style="padding:5px 8px;text-align:center;border:1px solid #e2e8f0;font-weight:700;color:#374151">Sem. fin</th>
+      <th style="padding:5px 8px;text-align:center;border:1px solid #e2e8f0;font-weight:700;color:#374151">Statut</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div style="display:flex;justify-content:space-between;font-size:8px;color:#94a3b8;padding-top:6px;border-top:1px solid #e2e8f0;margin-top:10px">
+    <span>Vertical Montecharge — Document confidentiel réservé au destinataire</span>
+    <span>Généré le ${today.toLocaleDateString("fr-FR")}</span>
+  </div>
+  </body></html>`);
+  pw.document.close();pw.focus();setTimeout(()=>{pw.print();pw.close();},700);
+}
+
+// ── Panneau d'édition d'un projet ───────────────────────────
+function PE({p,onS,onC,onD}){
+  const [f,sF]=useState(JSON.parse(JSON.stringify(p)));
+  const sd=(k,fld,v)=>sF(x=>({...x,dates:{...x.dates,[k]:{...(x.dates[k]||{debut:"",fin:"",done:false}),[fld]:v}}}));
+  return <div style={{borderTop:"3px solid #f97316",background:"#fffaf9",padding:"12px 14px"}}>
+    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:10,padding:"8px 10px",background:"white",borderRadius:7,border:"1px solid #e5e7eb"}}>
+      <input value={f.nom} onChange={e=>sF(x=>({...x,nom:e.target.value}))} placeholder="Nom du projet" style={{flex:"2 1 140px",fontSize:12,fontWeight:600,border:"1px solid #d1d5db",borderRadius:5,padding:"4px 8px"}}/>
+      <input value={f.client} onChange={e=>sF(x=>({...x,client:e.target.value}))} placeholder="Client" style={{flex:"1 1 100px",fontSize:12,border:"1px solid #d1d5db",borderRadius:5,padding:"4px 8px"}}/>
+      <input type="number" value={f.montant} onChange={e=>sF(x=>({...x,montant:parseFloat(e.target.value)||0}))} placeholder="Montant €" style={{width:100,fontSize:12,border:"1px solid #d1d5db",borderRadius:5,padding:"4px 8px"}}/>
+      <div style={{display:"flex",gap:5,marginLeft:"auto"}}>
+        <button onClick={()=>onS(f)} style={{fontSize:12,fontWeight:700,background:"#f97316",color:"white",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer"}}>✓ OK</button>
+        <button onClick={onC} style={{fontSize:12,border:"1px solid #d1d5db",borderRadius:6,padding:"6px 10px",cursor:"pointer",background:"white"}}>✕</button>
+        <button onClick={()=>{if(confirm("Supprimer ?"))onD(f.id);}} style={{fontSize:11,border:"none",borderRadius:6,padding:"6px 8px",cursor:"pointer",color:"#ef4444",background:"transparent"}}>🗑</button>
+      </div>
+    </div>
+    <div style={{display:"grid",gap:8,gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))"}}>
+      {PH.map(ph=><div key={ph.n} style={{background:"white",border:`1px solid ${ph.co}30`,borderRadius:7,overflow:"hidden"}}>
+        <div style={{background:ph.co,padding:"4px 10px"}}><span style={{color:"white",fontSize:11,fontWeight:700}}>Étape {ph.n} · {ph.fl}</span></div>
+        <div style={{padding:8}}>
+          {ph.et.map(et=>{const d=f.dates[et.k]||{debut:"",fin:"",done:false};return <div key={et.k} style={{marginBottom:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
+              <input type="checkbox" checked={d.done} onChange={e=>sd(et.k,"done",e.target.checked)} style={{accentColor:ph.co}}/>
+              <span style={{fontSize:11,fontWeight:600,textDecoration:d.done?"line-through":"none",color:d.done?"#9ca3af":"#374151"}}>{et.lb}</span>
+            </div>
+            <div style={{display:"flex",gap:4,paddingLeft:18,flexWrap:"wrap",alignItems:"center"}}>
+              <input type="date" value={d.debut||""} onChange={e=>sd(et.k,"debut",e.target.value)} style={{fontSize:11,border:"1px solid #d1d5db",borderRadius:4,padding:"2px 4px"}}/>
+              <span style={{color:"#9ca3af",fontSize:10}}>→</span>
+              <input type="date" value={d.fin||""} onChange={e=>sd(et.k,"fin",e.target.value)} style={{fontSize:11,border:"1px solid #d1d5db",borderRadius:4,padding:"2px 4px"}}/>
+            </div>
+          </div>;})}
+        </div>
+      </div>)}
+    </div>
+  </div>;
+}
+
+// ── Vue Gantt ────────────────────────────────────────────────
+function PG({ps,onU}){
+  const [eId,sE]=useState(null),[lW,sL]=useState(200);
+  const oRz=e=>{e.preventDefault();const sx=e.clientX,sw=lW;const oM=ev=>sL(Math.max(100,Math.min(400,sw+(ev.clientX-sx))));const oU=()=>{document.removeEventListener("mousemove",oM);document.removeEventListener("mouseup",oU);};document.addEventListener("mousemove",oM);document.addEventListener("mouseup",oU);};
+  const td=new Date();td.setHours(0,0,0,0);
+  const wk=bWk(ps),gp=mGrp(wk),tW=wk.length*WW;
+  const sr=[...ps].sort((a,b)=>{const da=a.dates.mise_en_service?.fin||a.dates.reception_finale?.fin||"9999";const db=b.dates.mise_en_service?.fin||b.dates.reception_finale?.fin||"9999";return da.localeCompare(db);});
+  const tX=dX(wk,td),ep=ps.find(p=>p.id===eId)||null;
+  if(!ps.length)return null;
+  return <div>
+    <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+      {PH.map(p=><div key={p.n} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:"#6b7280"}}><div style={{width:10,height:10,borderRadius:2,background:p.co}}/>{p.n}. {p.lb}</div>)}
+      <div style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:"#6b7280"}}><div style={{width:2,height:10,background:"#ef4444"}}/> Aujourd'hui</div>
+    </div>
+    <div style={{display:"flex",border:"1px solid #e5e7eb",borderRadius:"8px 8px 0 0",overflow:"hidden"}}>
+      <div style={{width:lW,flexShrink:0}}>
+        <div style={{height:28,background:"#f9fafb",borderBottom:"1px solid #e5e7eb"}}/>
+        <div style={{height:24,background:"#f9fafb",borderBottom:"2px solid #cbd5e1"}}/>
+        {sr.map(p=>{const ed=eId===p.id;return <div key={p.id} style={{height:RH,display:"flex",alignItems:"center",padding:"0 8px",gap:5,borderBottom:"1px solid #f3f4f6",background:ed?"#fff5f5":"white",borderLeft:`3px solid ${ed?"#f97316":"transparent"}`}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:11,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:"#1e293b"}}>{p.nom}</div>
+            <div style={{fontSize:10,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:"#6b7280"}}><span style={{color:"#0891b2",fontWeight:700,marginRight:4}}>{p.id}</span>{p.client} · {fmt(p.montant)}</div>
+          </div>
+          {isLt(p)&&<span title="En retard" style={{fontSize:12}}>⚠️</span>}
+          {gCE(p)===null&&<span title="Terminé" style={{fontSize:12}}>✅</span>}
+          <button onClick={()=>planPDF(p)} title="Imprimer le planning PDF" style={{border:"none",background:"none",cursor:"pointer",fontSize:13,color:"#9ca3af",padding:2}}>📄</button>
+          <button onClick={()=>sE(ed?null:p.id)} style={{border:"none",background:"none",cursor:"pointer",fontSize:13,color:ed?"#f97316":"#9ca3af",padding:2}}>{ed?"✕":"✎"}</button>
+        </div>;})}
+      </div>
+      <div onMouseDown={oRz} style={{width:5,flexShrink:0,cursor:"col-resize",background:"#e5e7eb",userSelect:"none"}} onMouseEnter={e=>e.currentTarget.style.background="#f97316"} onMouseLeave={e=>e.currentTarget.style.background="#e5e7eb"}/>
+      <div style={{flex:1,overflowX:"auto"}}>
+        <div style={{width:tW}}>
+          <div style={{display:"flex",height:28,background:"#f9fafb",borderBottom:"1px solid #e5e7eb"}}>
+            {gp.map((m,i)=><div key={i} style={{width:m.ct*WW,flexShrink:0,fontSize:11,fontWeight:700,display:"flex",alignItems:"center",paddingLeft:8,borderRight:"1px solid #d1d5db",color:"#374151"}}>{m.lb}</div>)}
+          </div>
+          <div style={{display:"flex",height:24,background:"#f9fafb",borderBottom:"2px solid #cbd5e1"}}>
+            {wk.map((w,i)=><div key={i} style={{width:WW,flexShrink:0,fontSize:10,display:"flex",alignItems:"center",justifyContent:"center",borderRight:"1px solid #e5e7eb",color:"#6b7280"}}>S{iWk(w)}</div>)}
+          </div>
+          {sr.map(p=><div key={p.id} style={{height:RH,position:"relative",borderBottom:"1px solid #f3f4f6"}}>
+            {wk.map((_,i)=><div key={i} style={{position:"absolute",left:i*WW,top:0,bottom:0,width:1,background:i%4===0?"#e5e7eb":"#f9fafb"}}/>)}
+            {PH.map(ph=>ph.et.map(et=>{const d=p.dates[et.k];if(!d?.debut||!d?.fin)return null;const db=pD(d.debut),fn=pD(d.fin);if(!db||!fn)return null;const lx=dX(wk,db),rx=dX(wk,new Date(fn.getTime()+86400000)),w=Math.max(5,rx-lx);return <div key={et.k} title={`${et.lb}: ${d.debut} → ${d.fin}`} style={{position:"absolute",left:lx,width:w,top:12,height:20,background:ph.co,opacity:d.done?1:0.4,borderRadius:3,zIndex:1}}/>;}))}
+            <div style={{position:"absolute",left:tX,top:0,bottom:0,width:2,background:"#ef4444",zIndex:2}}/>
+          </div>)}
+        </div>
+      </div>
+    </div>
+    {ep&&<PE p={ep} onS={u=>{onU(u);sE(null);}} onC={()=>sE(null)} onD={id=>{onU({...ep,id:"__PD__"+id});sE(null);}}/>}
+    <p style={{fontSize:10,color:"#94a3b8",marginTop:6,textAlign:"center"}}>Trié par date MES · ↔ redimensionner · 📄 PDF · ✎ modifier</p>
+  </div>;
+}
 function App(){
   const [tab,sTab]=useState("pv"),[pvF,sPvF]=useState("tous"),[rvF,sRvF]=useState("tous"),[srch,sSrch]=useState("");
   const [mFs,sMFs]=useState(new Set());
@@ -76,6 +252,13 @@ function App(){
   const [sF,sSF]=useState("dateMES"),[sD,sSD]=useState("asc"),[ep,sEp]=useState(null);
   const [lastI,sLI]=useState(""),[msg,sMsg]=useState(""),[showI,sSI]=useState(false),[showPrint,sShowPrint]=useState(false);
   const cFY=gFY(new Date()),[PS,sPS]=useState(iP),[OE,sOE]=useState(iO);
+  const iPl=()=>{try{const s=localStorage.getItem("vpl");if(s)return JSON.parse(s);}catch(e){}return[];};
+  const [PP,sPP]=useState(iPl);
+  useEffect(()=>{try{localStorage.setItem("vpl",JSON.stringify(PP));}catch(e){}},[PP]);
+  const [pAdd,sPAdd]=useState(false),[pNew,sPNew]=useState({id:"",nom:"",client:"",montant:""});
+  const plRef=useRef(null);
+  const upPl=u=>{if(u.id.startsWith("__PD__"))sPP(prev=>prev.filter(p=>p.id!==u.id.replace("__PD__","")));else sPP(prev=>prev.map(p=>p.id===u.id?u:p));};
+  const impPl=useCallback(e=>{const f=e.target.files?.[0];if(!f)return;Papa.parse(f,{header:true,skipEmptyLines:"greedy",complete:r=>{const nm=s=>s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");const pk=(row,...c)=>{for(const x of c){const fk=Object.keys(row).find(k=>nm(k)===nm(x));if(fk&&row[fk]?.toString().trim())return row[fk].toString().trim();}return "";};const imp=r.data.map(row=>{const id=pk(row,"Lead Number","Numéro","N° de vente","reference","id");const nom=pk(row,"Opportunité","Description","Désignation","Objet","nom","name")||id;const cl=pk(row,"Nom de la société","Client","Partenaire","Société","client");const vi=pk(row,"Ville","ville");const mt=parseFloat(pk(row,"Total HT","Montant HT","montant","amount").replace(/[^\d.,]/g,"").replace(",","."))||0;const dM=pk(row,"Date mise en service","Date MES");const dates={};if(dM&&pD(dM))dates.mise_en_service={debut:dM,fin:dM,done:false};return{id:id||`LD-${Date.now()}`,nom,client:vi?`${cl} · ${vi}`:cl,montant:mt,dates};}).filter(p=>p.nom||p.client);sPP(prev=>{const ids=new Set(prev.map(p=>p.id));const add=imp.filter(p=>!ids.has(p.id));alert(`${add.length} projet(s) ajouté(s) sur ${imp.length} ligne(s)`);return[...prev,...add];});}});e.target.value="";},[]);
   useEffect(()=>{try{localStorage.setItem("vp",JSON.stringify(PS));}catch(e){}},[PS]);
   useEffect(()=>{try{localStorage.setItem("vo",JSON.stringify(OE));}catch(e){}},[OE]);
   const txC=k=>sXC(p=>{const n=new Set(p);n.has(k)?n.delete(k):n.add(k);return n;});
@@ -86,10 +269,10 @@ function App(){
   const saveE=u=>{sPS(p=>p.map(x=>x.ld===u.ld?u:x));sEp(null);};
   const hSort=f=>{if(sF===f)sSD(d=>d==="asc"?"desc":"asc");else{sSF(f);sSD("asc");}};
   const si=f=>sF===f?(sD==="asc"?" ↑":" ↓"):" ↕";
-  const expJSON=()=>{const d={projects:PS,otifiq:OE,exportDate:new Date().toISOString()};const b=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});const u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download="vertical_"+new Date().toISOString().split("T")[0]+".json";a.click();URL.revokeObjectURL(u);};
-  const impJSON=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.projects)sPS(d.projects);if(d.otifiq)sOE(d.otifiq);sMsg("✓ "+((d.projects||[]).length)+" affaires");}catch(x){sMsg("⚠️ JSON invalide");}setTimeout(()=>sMsg(""),4000);};r.readAsText(f);e.target.value="";};
+  const expJSON=()=>{const d={projects:PS,otifiq:OE,planning:PP,exportDate:new Date().toISOString()};const b=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});const u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download="vertical_"+new Date().toISOString().split("T")[0]+".json";a.click();URL.revokeObjectURL(u);};
+  const impJSON=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.projects)sPS(d.projects);if(d.otifiq)sOE(d.otifiq);if(d.planning)sPP(d.planning);sMsg("✓ "+((d.projects||[]).length)+" affaires");}catch(x){sMsg("⚠️ JSON invalide");}setTimeout(()=>sMsg(""),4000);};r.readAsText(f);e.target.value="";};
   const resetAll=()=>{if(!window.confirm("Effacer TOUTES les données du dashboard ?\n(Exportez le JSON avant si vous voulez garder les données OTIFIQ)"))return;localStorage.removeItem("vp");localStorage.removeItem("vo");sPS([]);sOE([]);sLI("");sMsg("✓ Cache vidé — réimportez votre CSV");setTimeout(()=>sMsg(""),5000);};
-  const procF=useCallback(f=>{if(!f)return;if(f.name.match(/\.xlsx?$/i)){sMsg("⚠️ xlsx non supporté");return;}const r=new FileReader();r.onload=ev=>{const imp=parseCSV(ev.target.result);if(!imp.length){sMsg("⚠️ Aucune affaire LD");return;}let upd=0,add=0,oA=0;sPS(prev=>{const nx=[...prev];imp.forEach(i=>{const idx=nx.findIndex(x=>x.ld===i.ld);if(idx>=0){nx[idx]={...nx[idx],client:i.client||nx[idx].client,ville:i.ville||nx[idx].ville,dept:i.dept||nx[idx].dept,ca:i.ca||nx[idx].ca,dateMES:i.dateMES||nx[idx].dateMES,previPose:i.previPose||nx[idx].previPose,solde:i.solde};upd++;}else{nx.push({ld:i.ld,client:i.client,ville:i.ville,dept:i.dept||"",ca:i.ca,dateMES:i.dateMES,pvRecu:false,reserves:null,installateur:"",installateurLibre:"",previPose:i.previPose||0,reelPose:0,notes:"",solde:i.solde??false});add++;}});return nx;});sOE(prev=>{const nx=[...prev];imp.forEach(i=>{if(!i.dateMES)return;const m=gML(i.dateMES);if(!m)return;const ex=nx.find(o=>o.ld===i.ld);if(!ex){nx.push({ld:i.ld,client:i.client||"",mois:m,onTime:false,sansReserves:false,fournisseur:"",fournisseurLibre:"",fournOT:false,fournIF:false,fournIQ:false,notes:""});oA++;}else if(ex.mois!==m){const idx=nx.indexOf(ex);nx[idx]={...ex,mois:m};}});return nx;});sLI(new Date().toLocaleString("fr-FR",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}));sMsg("✓ "+upd+" màj · "+add+" nouvelles · "+oA+" OTIFIQ");setTimeout(()=>{sMsg("");sSI(false);},6000);};r.readAsText(f,"UTF-8");},[]);
+  const procF=useCallback(f=>{if(!f)return;if(f.name.match(/\.xlsx?$/i)){sMsg("⚠️ xlsx non supporté");return;}const r=new FileReader();r.onload=ev=>{const imp=parseCSV(ev.target.result);if(!imp.length){sMsg("⚠️ Aucune affaire LD");return;}let upd=0,add=0,oA=0;sPS(prev=>{const nx=[...prev];imp.forEach(i=>{const idx=nx.findIndex(x=>x.ld===i.ld);if(idx>=0){nx[idx]={...nx[idx],client:i.client||nx[idx].client,ville:i.ville||nx[idx].ville,dept:i.dept||nx[idx].dept,ca:i.ca||nx[idx].ca,dateMES:i.dateMES||nx[idx].dateMES,previPose:i.previPose||nx[idx].previPose,solde:i.solde};upd++;}else{nx.push({ld:i.ld,client:i.client,ville:i.ville,dept:i.dept||"",ca:i.ca,dateMES:i.dateMES,pvRecu:false,reserves:null,installateur:"",installateurLibre:"",previPose:i.previPose||0,reelPose:0,notes:"",solde:i.solde??false});add++;}});return nx;});sOE(prev=>{const nx=[...prev];imp.forEach(i=>{if(!i.dateMES)return;const m=gML(i.dateMES);if(!m)return;const ex=nx.find(o=>o.ld===i.ld);if(!ex){nx.push({ld:i.ld,client:i.client||"",mois:m,onTime:false,sansReserves:false,fournisseur:"",fournisseurLibre:"",fournOT:false,fournIF:false,fournIQ:false,notes:""});oA++;}else if(ex.mois!==m){const idx=nx.indexOf(ex);nx[idx]={...ex,mois:m};}});return nx;});sPP(prev=>{const nx=[...prev];imp.forEach(i=>{if(!i.ld)return;const idx=nx.findIndex(x=>x.id===i.ld);if(idx>=0){nx[idx]={...nx[idx],client:i.client||nx[idx].client,montant:i.ca||nx[idx].montant};if(i.dateMES&&pD(i.dateMES)&&!nx[idx].dates.mise_en_service){nx[idx]={...nx[idx],dates:{...nx[idx].dates,mise_en_service:{debut:i.dateMES,fin:i.dateMES,done:false}}};}}else{const dates={};if(i.dateMES&&pD(i.dateMES))dates.mise_en_service={debut:i.dateMES,fin:i.dateMES,done:false};nx.push({id:i.ld,nom:(i.client||i.ld)+(i.ville?" · "+i.ville:""),client:i.client||"",montant:i.ca||0,dates});}});return nx;});sLI(new Date().toLocaleString("fr-FR",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}));sMsg("✓ "+upd+" màj · "+add+" nouvelles · "+oA+" OTIFIQ");setTimeout(()=>{sMsg("");sSI(false);},6000);};r.readAsText(f,"UTF-8");},[]);
   const hCSV=e=>{const f=e.target.files?.[0];if(f)procF(f);e.target.value="";};
   const doPrint=(land)=>{const s=document.createElement("style");s.id="pst";s.textContent="@page{size:A4 "+(land?"landscape":"portrait")+";margin:"+(land?"10mm":"12mm")+" 15mm;}";document.head.appendChild(s);const r=document.getElementById("AR"),c=document.getElementById("AC"),or=r&&r.style.cssText,oc=c&&c.style.cssText;if(r)r.style.cssText=(r.style.cssText||"")+";height:auto!important;overflow:visible!important;display:block!important";if(c)c.style.cssText=(c.style.cssText||"")+";height:auto!important;overflow:visible!important;flex:none!important;max-height:none!important";setTimeout(()=>{window.print();setTimeout(()=>{document.getElementById("pst")?.remove();if(r&&or!==undefined)r.style.cssText=or;if(c&&oc!==undefined)c.style.cssText=oc;sShowPrint(false);},600);},250);};
   const pvK=useMemo(()=>{const tot=PS.length,pv=PS.filter(p=>p.pvRecu).length,sr=PS.filter(p=>p.pvRecu&&!p.reserves).length;return{tot,pv,sr,tx:pv>0?Math.round(sr/pv*100):0};},[PS]);
@@ -141,7 +324,7 @@ function App(){
         {msg&&<div style={{marginTop:8,background:msg.startsWith("⚠️")?"#fef3c7":"#dcfce7",color:msg.startsWith("⚠️")?"#92400e":"#14532d",padding:"7px 14px",borderRadius:6,fontSize:12,fontWeight:700}}>{msg}</div>}
       </div>)}
       <div className="np" style={{background:"#0f2240",padding:"0 20px",display:"flex",gap:4,borderBottom:"1px solid #1a3a6a"}}>
-        {[["pv","🔧 Installation"],["otifiq","📊 OTIFIQ"],["prev","📅 Prévisionnel"]].map(([k,l])=>(
+        {[["pv","🔧 Installation"],["otifiq","📊 OTIFIQ"],["prev","💵 Prévisionnel"],["planning","🗓️ Planning"]].map(([k,l])=>(
           <button key={k} onClick={()=>sTab(k)} style={{padding:"10px 18px",color:tab===k?"#fff":"#7fa4d8",cursor:"pointer",fontSize:13,fontWeight:600,background:"none",border:"none",borderBottom:"2px solid "+(tab===k?"#1a6ed8":"transparent")}}>{l}</button>
         ))}
       </div>
@@ -320,6 +503,31 @@ function App(){
               </table>
             </CC>
           </Card>
+        </div>)}
+        {tab==="planning"&&(<div>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:12}}>
+            <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>🗓️ Planning Gantt</span>
+            <span style={{fontSize:11,color:"#94a3b8"}}>{PP.length} projet(s)</span>
+            <div style={{flex:1}}/>
+            <input ref={plRef} type="file" accept=".csv" style={{display:"none"}} onChange={impPl}/>
+            <button onClick={()=>plRef.current?.click()} style={{background:"#1a6ed8",color:"white",border:"none",padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer"}}>↑ Import Odoo CSV</button>
+            <button onClick={()=>sPAdd(v=>!v)} style={{background:pAdd?"#6b7280":"#f97316",color:"white",border:"none",padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer"}}>{pAdd?"✕ Annuler":"+ Nouveau projet"}</button>
+          </div>
+          {pAdd&&(<div style={{background:"white",border:"1px solid #e5e7eb",borderRadius:8,padding:"12px 14px",marginBottom:12}}>
+            <div style={{fontSize:12,fontWeight:700,marginBottom:8,color:"#374151"}}>Nouveau projet</div>
+            <div style={{display:"grid",gap:8,gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))"}}>
+              {[{k:"nom",l:"Nom *"},{k:"client",l:"Client"},{k:"id",l:"Référence"},{k:"montant",l:"Montant HT €",t:"number"}].map(f=>(
+                <div key={f.k}><div style={{fontSize:11,color:"#64748b",marginBottom:2}}>{f.l}</div>
+                <input type={f.t||"text"} value={pNew[f.k]} onChange={e=>sPNew(p=>({...p,[f.k]:e.target.value}))} style={{width:"100%",border:"1px solid #e2e8f0",borderRadius:5,padding:"5px 8px",fontSize:12}}/></div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:10}}>
+              <button onClick={()=>sPAdd(false)} style={{padding:"6px 14px",border:"1px solid #e2e8f0",borderRadius:6,background:"white",fontSize:12,cursor:"pointer"}}>Annuler</button>
+              <button onClick={()=>{if(!pNew.nom)return;sPP(prev=>[...prev,{id:pNew.id||`VM-${new Date().getFullYear()}-${String(prev.length+1).padStart(3,"0")}`,nom:pNew.nom,client:pNew.client,montant:parseFloat(pNew.montant)||0,dates:{}}]);sPNew({id:"",nom:"",client:"",montant:""});sPAdd(false);}} style={{padding:"6px 14px",background:"#f97316",color:"white",border:"none",borderRadius:6,fontSize:12,fontWeight:600,cursor:"pointer"}}>Créer</button>
+            </div>
+          </div>)}
+          {PP.length===0&&!pAdd&&(<div style={{textAlign:"center",padding:"60px 20px",color:"#94a3b8",background:"white",borderRadius:8,border:"1px solid #e2e8f0"}}><div style={{fontSize:48,marginBottom:12}}>🗓️</div><div style={{fontSize:16,fontWeight:700,color:"#64748b",marginBottom:8}}>Aucun projet</div><div style={{fontSize:13}}>Importez votre CSV Odoo ou créez un projet manuellement</div></div>)}
+          {PP.length>0&&<Card><CC s={{padding:"14px 16px"}}><PG ps={PP} onU={upPl}/></CC></Card>}
         </div>)}
       </div>
 
