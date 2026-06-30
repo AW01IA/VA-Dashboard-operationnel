@@ -249,7 +249,7 @@ function App(){
   const [mFs,sMFs]=useState(new Set());
   const [oSrch,sOSrch]=useState(""),[oMFs,sOMFs]=useState(new Set()),[inclFut,sInclFut]=useState(false);
   const [xC,sXC]=useState(new Set(["c1","fourni"])),[xFY,sXFY]=useState(()=>new Set([gFY(new Date())]));
-  const [sF,sSF]=useState("dateMES"),[sD,sSD]=useState("asc"),[ep,sEp]=useState(null);
+  const [sF,sSF]=useState("dateMES"),[sD,sSD]=useState("asc"),[ep,sEp]=useState(null),[editMES,sEMES]=useState(null);
   const [lastI,sLI]=useState(""),[msg,sMsg]=useState(""),[showI,sSI]=useState(false),[showPrint,sShowPrint]=useState(false);
   const cFY=gFY(new Date()),[PS,sPS]=useState(iP),[OE,sOE]=useState(iO);
   const iPl=()=>{try{const s=localStorage.getItem("vpl");if(s)return JSON.parse(s);}catch(e){}return[];};
@@ -269,6 +269,7 @@ useEffect(()=>{fetch(`https://api.jsonbin.io/v3/b/${JBIN_ID}/latest`,{headers:{"
   const tgM=m=>sMFs(p=>{const n=new Set(p);n.has(m)?n.delete(m):n.add(m);return n;});
   const tgOM=m=>sOMFs(p=>{const n=new Set(p);n.has(m)?n.delete(m):n.add(m);return n;});
   const upO=(ld,f,v)=>sOE(p=>p.map(e=>e.ld===ld?{...e,[f]:v}:e));
+  const upMES=(ld,d)=>{sPS(prev=>prev.map(p=>p.ld===ld?{...p,dateMES:d}:p));const m=gML(d);if(m)sOE(prev=>prev.map(o=>o.ld===ld?{...o,mois:m}:o));sPP(prev=>prev.map(p=>p.id===ld?{...p,dates:{...p.dates,mise_en_service:{...(p.dates.mise_en_service||{}),debut:d,fin:d}}}:p));};
   const saveE=u=>{sPS(p=>p.map(x=>x.ld===u.ld?u:x));sEp(null);};
   const hSort=f=>{if(sF===f)sSD(d=>d==="asc"?"desc":"asc");else{sSF(f);sSD("asc");}};
   const si=f=>sF===f?(sD==="asc"?" ↑":" ↓"):" ↕";
@@ -371,12 +372,12 @@ useEffect(()=>{fetch(`https://api.jsonbin.io/v3/b/${JBIN_ID}/latest`,{headers:{"
                 <th style={thS}>Notes</th><th className="np" style={thS}>Action</th>
               </tr></thead>
               <tbody>{fp.map(p=>{const chi=isCh(p.ld);const dTip=p.reelPose>0&&p.previPose>0?"Prévi: "+fmt(p.previPose)+" | Réel: "+fmt(p.reelPose)+" | Δ: "+(p.reelPose>=p.previPose?"+":"")+fmt(p.reelPose-p.previPose):"";return(
-                <tr key={p.ld} style={{background:p.reserves?"#fff5f5":p.pvRecu?"#f0fdf4":chi?"#fafbff":"white"}}>
+                <tr key={p.ld} style={{background:p.reserves?"#fff5f5":p.pvRecu?"#f0fdf4":chi?"#fafbff":"white",opacity:p.solde?0.45:1,filter:p.solde?"grayscale(0.4)":"none"}}>
                   <td style={{...tdS,fontWeight:700,color:chi?"#6366f1":"#2563eb",paddingLeft:chi?24:12}}>{chi&&<span style={{color:"#c7d2fe",marginRight:4,fontSize:11}}>└</span>}{p.ld}</td>
                   <td style={{...tdS,maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={p.client}>{p.client}</td>
                   <td style={{...tdS,color:"#64748b"}}>{p.ville||"—"}{p.dept&&<span style={{marginLeft:4,background:"#f1f5f9",color:"#475569",padding:"0 4px",borderRadius:4,fontSize:10,fontWeight:700}}>({p.dept})</span>}</td>
                   <td style={{...tdS,fontWeight:600}}>{fmt(p.ca)}</td>
-                  <td style={{...tdS,color:"#64748b",whiteSpace:"nowrap"}}>{fmtD(p.dateMES)}</td>
+                  <td style={{...tdS,color:"#64748b",whiteSpace:"nowrap"}}>{editMES===p.ld?<input type="date" defaultValue={p.dateMES} autoFocus onBlur={e=>{if(e.target.value)upMES(p.ld,e.target.value);sEMES(null);}} style={{fontSize:11,border:"1px solid #93c5fd",borderRadius:4,padding:"2px 4px"}}/>:<span onClick={()=>sEMES(p.ld)} title="Cliquer pour modifier" style={{cursor:"pointer",borderBottom:"1px dashed #cbd5e1"}}>{fmtD(p.dateMES)||"— modifier"}</span>}</td>
                   <td style={tdS}><div style={{display:"flex",flexDirection:"column",gap:3}}><SB pv={p.pvRecu} rv={p.reserves}/>{p.solde&&<span style={{background:"#dcfce7",color:"#14532d",padding:"1px 6px",borderRadius:10,fontSize:10,fontWeight:700}}>✓ Soldée</span>}</div></td>
                   <td style={tdS}>{p.installateur?<span style={{fontSize:12,fontWeight:600}}>{p.installateur==="Autre"?p.installateurLibre:p.installateur}</span>:<span style={{color:"#94a3b8",fontSize:11}}>—</span>}</td>
                   <td style={{...tdS,textAlign:"right",color:"#64748b"}}>{p.previPose>0?fmt(p.previPose):"—"}</td>
